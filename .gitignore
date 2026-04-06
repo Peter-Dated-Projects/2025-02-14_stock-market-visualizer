@@ -1,0 +1,37 @@
+# Environment
+.env
+.env.local
+.env.staging
+.env.production
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Node / Bun
+node_modules/
+.next/
+out/
+bun.lock
+
+# Docker volumes (if mapped locally)
+mysql_data/
+redis_data/
+mongo_data/
+ollama_data/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
