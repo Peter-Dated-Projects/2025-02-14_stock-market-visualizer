@@ -1,0 +1,99 @@
+"""
+FastAPI application factory with lifespan management.
+
+The lifespan context manager initializes and tears down all database
+connections, ensuring clean startup and shutdown.
+"""
+
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
+from app.dependencies import (
+    init_mysql, close_mysql,
+    init_mongo, close_mongo,
+    init_redis, close_redis,
+)
+from app.routers import health
+
+# ──────────────────────────────────────────────
+# Logging
+# ──────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.is_staging else logging.INFO,
+    format="%(asctime)s │ %(levelname)-8s │ %(name)s │ %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("smv")
+
+
+# ──────────────────────────────────────────────
+# Lifespan — startup / shutdown
+# ──────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize all connections on startup, tear down on shutdown."""
+    logger.info(f"Starting SMV backend [{settings.app_env}]")
+
+    # Startup
+    init_mysql()
+    logger.info("  ✓ MySQL connected")
+
+    init_mongo()
+    logger.info("  ✓ MongoDB connected")
+
+    init_redis()
+    logger.info("  ✓ Redis connected")
+
+    logger.info("All services initialized. Ready to serve requests.")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down SMV backend...")
+    await close_mysql()
+    await close_mongo()
+    await close_redis()
+    logger.info("All connections closed. Goodbye.")
+
+
+# ──────────────────────────────────────────────
+# App factory
+# ──────────────────────────────────────────────
+
+def create_app() -> FastAPI:
+    """Build and configure the FastAPI application."""
+    app = FastAPI(
+        title="SMV — Stock Market Visualizer",
+        description="Automated trading platform with AI-driven market intelligence",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if settings.is_staging else None,
+        redoc_url="/redoc" if settings.is_staging else None,
+    )
+
+    # CORS — allow frontend in development
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Register routers
+    app.include_router(health.router)
+
+    return app
+
+
+# Uvicorn entrypoint
+app = create_app()
