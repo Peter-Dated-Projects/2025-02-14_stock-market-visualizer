@@ -17,8 +17,10 @@ from app.dependencies import (
     init_mongo, close_mongo,
     init_redis, close_redis,
 )
-from app.routers import health, market, trades, portfolio
+from app.routers import health, market, trades, portfolio, agent, system
 from app.services.polygon import close_client as close_polygon
+from app.services.ollama import close_client as close_ollama
+from app.agents.scheduler import start_scheduler, stop_scheduler
 
 # ──────────────────────────────────────────────
 # Logging
@@ -51,16 +53,22 @@ async def lifespan(app: FastAPI):
     init_redis()
     logger.info("  ✓ Redis connected")
 
+    # Start agent scheduler
+    start_scheduler()
+    logger.info("  ✓ Agent scheduler started")
+
     logger.info("All services initialized. Ready to serve requests.")
 
     yield
 
     # Shutdown
     logger.info("Shutting down SMV backend...")
+    stop_scheduler()
     await close_mysql()
     await close_mongo()
     await close_redis()
     await close_polygon()
+    await close_ollama()
     logger.info("All connections closed. Goodbye.")
 
 
@@ -96,6 +104,8 @@ def create_app() -> FastAPI:
     app.include_router(market.router)
     app.include_router(trades.router)
     app.include_router(portfolio.router)
+    app.include_router(agent.router)
+    app.include_router(system.router)
 
     return app
 
